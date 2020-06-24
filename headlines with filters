@@ -1,0 +1,110 @@
+####SET UP####
+#Working directory
+setwd("C:/Users/Bas1994/Documents/RA Sequeira/Media")
+
+#Packages
+library(rvest)
+library(dplyr)
+library(stringr)
+library(writexl)
+
+#Functions
+scraplinks <- function(url){
+  # Create an html document from the url
+  webpage <- xml2::read_html(url)
+  # Extract the URLs
+  url_ <- webpage %>%
+    rvest::html_nodes("a") %>%
+    rvest::html_attr("href")
+  # Extract the link text
+  link_ <- webpage %>%
+    rvest::html_nodes("a") %>%
+    rvest::html_text()
+  return(data.frame(link = link_, url = url_))
+}
+
+#Parameters
+number_of_paragraphs_express <- 4
+key_words <- c("brexit", "european union", "the eu", "climate change", "paris agreement", "environment",
+               "global warming", "unfccc")
+
+anti_key_words <- c("football", "arsenal", "chelsea", "everton", "liverpool", "leicester city", 
+                    "manchester united", "manchester city", "tottenham", "mourinho", "man utd")
+
+###EXPRESS####
+df_express <- data.frame(headline=character(),
+                 newspapers=character(), 
+                 date=character(), 
+                 author=character(),
+                 page_number=character(),
+                 text=character()) 
+
+for (year in 2015:2017){
+  if (year ==2015){
+    months <- 3:12
+  } else if (year == 2016){
+    months <- 1:12
+  } else {
+    months <- 1:3 
+  }
+  for (month in months){
+    if (month ==2 & year == 2016){
+      days <- 29
+    } else if (month == 2){
+      days <- 28
+    } else if (month %in% c(4, 6, 9, 11)){
+      days <- 30
+    } else {
+      days <- 31
+    }
+    
+    for (day in 1:days){
+      page <- paste0("https://www.express.co.uk/sitearchive/",year,"/",month,"/",day)
+      
+      page_html <- read_html(page)
+      headline1 <- html_text(page_html %>% html_nodes(xpath='//*[@id="maincontainer"]/div[1]/div/section/ul/li[1]/a'))
+      
+      links <- scraplinks(page)
+      links <- links[which(links$link==headline1):(which(links$link=="Find us on Facebook")[2]-1),]
+      
+      links <- links[substr(links$url,1,6)=="/news/",]
+      
+      #filter out headlines that have "anti-headlines" (not necessary here because the url indicate already
+      #if the article is an actual news article):
+      #links <- links[!(grepl(paste(anti_key_words, collapse = "|"), tolower(links$link))),]
+      
+      for (i in 1:length(links$url)){
+        art_html <- read_html(paste0("https://www.express.co.uk/",links$url[i]))
+        
+        author <- art_html %>%    
+          rvest::html_nodes('body') %>% 
+          xml2::xml_find_all("//div[contains(@class, 'author')]") %>% 
+          rvest::html_text()
+        author <- str_replace_all(author, " By " , "")
+        if (length(author)==0){
+          author <- NA
+        }
+        
+        intro <- html_text(art_html %>% html_nodes("h3"))[1]
+        
+        parag <- character()
+        xp_value<-3
+        for (j in 1:number_of_paragraphs_express){
+          xp <- paste0('//*[@id="singleArticle"]/article/div[2]/div/div[',xp_value ,']/p[',j,']')
+          parag <- paste(parag, html_text(art_html %>% html_nodes(xpath=xp)))
+        }
+        
+        if (!identical(parag,character(0))){
+          if (grepl(paste(key_words, collapse = "|"), tolower(parag))){
+            row <- c(links$link[i],"Express", paste(day,month,year,sep="-"), author, NA, paste(intro, parag))
+            df_express <- rbind(df_express,row)
+            print(links$link[i])
+          }
+        }
+      }
+      print(paste(paste(day,month,year,sep="-"), "is done!"))
+    }
+  }
+}
+names(df_express) <- c("headline", "newspaper", "date", "author", "page", "text")
+write_xlsx(df_express, 'express_after_filters.xlsx')
