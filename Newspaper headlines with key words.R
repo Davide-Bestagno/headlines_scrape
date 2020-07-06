@@ -393,7 +393,7 @@ for (year in 2015:2017){
             }
             
             date<- html_text(art_html %>% html_nodes(xpath='//*[@id="article-main"]/main/div/div[1]/div[2]/div[2]/div/div/span/time'))
-            day <- as.integer(str_split(date," ")[[1]][3])
+            day <- tryCatch(as.integer(str_split(date," ")[[1]][3]),error = function(e){NA})
             
             if ((!identical(parag,character(0))) & is.integer(day)){
               if (grepl(paste(key_words, collapse = "|"), tolower(paste(links$link[i],intro,parag)))){
@@ -662,7 +662,7 @@ write_xlsx(df_guardian, 'guardian_after_filters.xlsx')
 write_xlsx(df_indep, 'independent_after_filters.xlsx')
 
 #Some code that produces the number-of-articles-per-day-graph
-a <- as.data.frame(table(df_express$date))
+a <- as.data.frame(table(df_ev_stan$date))
 a$Var1 <- as.Date(a$Var1,"%d-%m-%Y")
 a<-a[order(a$Var1),]
 plot(a,type="l")
